@@ -1,7 +1,9 @@
-// a single story card - shows an image, the headline, a category tag, and how long ago it was posted
-// this component doesn't care where the data came from, it just displays whatever story it's given
+// a single story card - big rounded image on top, headline and summary below,
+// with a category pill and a small clock + time row, styled after the reference design
 
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, fonts } from '../theme';
 
 // turns a timestamp into something like "2h ago" or "5d ago"
 function getRelativeTime(publishedAt) {
@@ -18,13 +20,18 @@ function getRelativeTime(publishedAt) {
 
 export default function StoryCard({ story, onPress }) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
-      <Image source={{ uri: story.imageUrl }} style={styles.image} />
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+      {story.imageUrl && (
+        <Image source={{ uri: story.imageUrl }} style={styles.image} />
+      )}
 
       <View style={styles.content}>
         <View style={styles.tagRow}>
-          <Text style={styles.category}>{story.category}</Text>
-          <Text style={styles.time}>{getRelativeTime(story.publishedAt)}</Text>
+          <View style={[styles.pill, story.isBreaking && styles.pillBreaking]}>
+            <Text style={[styles.pillText, story.isBreaking && styles.pillTextBreaking]}>
+              {story.isBreaking ? 'Breaking' : story.category}
+            </Text>
+          </View>
         </View>
 
         <Text style={styles.title} numberOfLines={2}>
@@ -34,6 +41,11 @@ export default function StoryCard({ story, onPress }) {
         <Text style={styles.summary} numberOfLines={2}>
           {story.summary}
         </Text>
+
+        <View style={styles.metaRow}>
+          <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+          <Text style={styles.time}>{getRelativeTime(story.publishedAt)}</Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -41,49 +53,64 @@ export default function StoryCard({ story, onPress }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    marginBottom: 16,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    marginBottom: 18,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
   image: {
     width: '100%',
-    height: 180,
-    backgroundColor: '#e5e5e5',
+    height: 190,
+    backgroundColor: colors.border,
   },
   content: {
-    padding: 14,
+    padding: 16,
   },
   tagRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  category: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0f6e56',
+  pill: {
+    backgroundColor: colors.accentLight,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+  },
+  pillBreaking: {
+    backgroundColor: colors.breakingLight,
+  },
+  pillText: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: colors.accent,
     textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
-  time: {
-    fontSize: 12,
-    color: '#8a8a8a',
+  pillTextBreaking: {
+    color: colors.breaking,
   },
   title: {
+    fontFamily: fonts.bold,
     fontSize: 17,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    color: colors.textPrimary,
     marginBottom: 6,
-    lineHeight: 22,
+    lineHeight: 23,
   },
   summary: {
+    fontFamily: fonts.regular,
     fontSize: 14,
-    color: '#5a5a5a',
+    color: colors.textSecondary,
     lineHeight: 20,
+    marginBottom: 12,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  time: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.textMuted,
   },
 });
