@@ -18,7 +18,7 @@ import SearchBar from '../components/SearchBar';
 import { fetchByCountry, fetchInternational, getUserCountryCode } from '../api/newsApi';
 import { colors, fonts } from '../theme';
 
-export default function FeedScreen() {
+export default function FeedScreen({ navigation }) {
   const [feeds, setFeeds] = useState({ local: [], us: [], international: [] });
   const [availableRegions, setAvailableRegions] = useState([]);
   const [selectedRegion, setSelectedRegion] = useState(null);
@@ -139,7 +139,11 @@ export default function FeedScreen() {
           <>
             <Text style={styles.sectionHeader}>Breaking</Text>
             {breakingStories.map((story) => (
-              <StoryCard key={story.id} story={story} onPress={() => {}} />
+              <StoryCard
+                key={story.id}
+                story={story}
+                onPress={() => navigation.navigate('Article', { url: story.sourceUrl, sourceName: story.category })}
+              />
             ))}
           </>
         )}
@@ -147,7 +151,11 @@ export default function FeedScreen() {
         <Text style={styles.sectionHeader}>Trending</Text>
         {trendingStories.length > 0 ? (
           trendingStories.map((story) => (
-            <StoryCard key={story.id} story={story} onPress={() => {}} />
+            <StoryCard
+              key={story.id}
+              story={story}
+              onPress={() => navigation.navigate('Article', { url: story.sourceUrl, sourceName: story.category })}
+            />
           ))
         ) : (
           <Text style={styles.emptyText}>No stories match your search.</Text>

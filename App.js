@@ -1,8 +1,8 @@
 // entry point of the app
-// loads our custom font before rendering anything, and keeps the splash
-// screen visible in the meantime so there's no flash of the wrong font
+// loads our custom font before rendering anything, then hands off
+// to the navigator, which controls which screen the user sees
 
-import { useCallback, useEffect } from 'react';
+import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import {
   useFonts,
@@ -10,7 +10,7 @@ import {
   PlusJakartaSans_500Medium,
   PlusJakartaSans_700Bold,
 } from '@expo-google-fonts/plus-jakarta-sans';
-import FeedScreen from './src/screens/FeedScreen';
+import AppNavigator from './src/navigation/AppNavigator';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,5 +31,5 @@ export default function App() {
     return null;
   }
 
-  return <FeedScreen />;
+  return <AppNavigator />;
 }
