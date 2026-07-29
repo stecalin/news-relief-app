@@ -4,9 +4,10 @@
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts } from '../theme';
+import { getRelativeTime } from '../utils/relativeTime';
 
 // turns a timestamp into something like "2h ago" or "5d ago"
-function getRelativeTime(publishedAt) {
+/*function getRelativeTime(publishedAt) {
   const now = new Date();
   const then = new Date(publishedAt);
   const diffMs = now - then;
@@ -16,13 +17,23 @@ function getRelativeTime(publishedAt) {
   if (diffHours < 24) return `${diffHours}h ago`;
   const diffDays = Math.floor(diffHours / 24);
   return `${diffDays}d ago`;
-}
+}*/
 
-export default function StoryCard({ story, onPress }) {
+export default function StoryCard({ story, onPress, onHelpPress, isSaved, onToggleSave }) {
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
       {story.imageUrl && (
-        <Image source={{ uri: story.imageUrl }} style={styles.image} />
+        <View style={styles.imageWrapper}>
+          <Image source={{ uri: story.imageUrl }} style={styles.image} />
+
+          <TouchableOpacity style={styles.bookmarkButton} onPress={onToggleSave}>
+            <Ionicons
+              name={isSaved ? 'bookmark' : 'bookmark-outline'}
+              size={18}
+              color={isSaved ? colors.accent : '#FFFFFF'}
+            />
+          </TouchableOpacity>
+        </View>
       )}
 
       <View style={styles.content}>
@@ -42,9 +53,16 @@ export default function StoryCard({ story, onPress }) {
           {story.summary}
         </Text>
 
-        <View style={styles.metaRow}>
-          <Ionicons name="time-outline" size={14} color={colors.textMuted} />
-          <Text style={styles.time}>{getRelativeTime(story.publishedAt)}</Text>
+        <View style={styles.bottomRow}>
+          <View style={styles.metaRow}>
+            <Ionicons name="time-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.time}>{getRelativeTime(story.publishedAt)}</Text>
+          </View>
+
+          <TouchableOpacity style={styles.helpButton} onPress={onHelpPress}>
+            <Ionicons name="heart-outline" size={14} color={colors.help} />
+            <Text style={styles.helpButtonText}>How to help</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
@@ -58,10 +76,24 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     overflow: 'hidden',
   },
+  imageWrapper: {
+    position: 'relative',
+  },
   image: {
     width: '100%',
     height: 190,
     backgroundColor: colors.border,
+  },
+  bookmarkButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    borderRadius: 16,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     padding: 16,
@@ -107,6 +139,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  bottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  helpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  helpButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.help,
   },
   time: {
     fontFamily: fonts.medium,

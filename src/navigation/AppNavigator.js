@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import FeedStack from './FeedStack';
 import HelpScreen from '../screens/HelpScreen';
+import SavedStack from './SavedStack';
 import ProfileScreen from '../screens/ProfileScreen';
 import { colors, fonts } from '../theme';
 
@@ -15,6 +16,7 @@ const Tab = createBottomTabNavigator();
 const TAB_ICONS = {
   Feed: 'newspaper-outline',
   Help: 'heart-outline',
+  Saved: 'bookmark-outline',
   Profile: 'person-outline',
 };
 
@@ -44,6 +46,7 @@ export default function AppNavigator() {
       >
         <Tab.Screen name="Feed" component={FeedStack} />
         <Tab.Screen name="Help" component={HelpScreen} />
+        <Tab.Screen name="Saved" component={SavedStack} />
         <Tab.Screen name="Profile" component={ProfileScreen} />
       </Tab.Navigator>
     </NavigationContainer>

@@ -1,9 +1,8 @@
 // main feed screen
-// fetches three separate feeds - the user's own country, us, and international -
-// lets the user switch tabs and search within the current tab, and splits
-// stories into "breaking" (last 6 hours) and "trending" (everything else)
+// breaking news is a swipeable carousel of full-width cards up top,
+// trending news is a normal vertical list below it, newest to oldest
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ScrollView,
   Text,
@@ -13,74 +12,28 @@ import {
   RefreshControl,
 } from 'react-native';
 import StoryCard from '../components/StoryCard';
+import BreakingCarousel from '../components/BreakingCarousel';
 import RegionTabs from '../components/RegionTabs';
 import SearchBar from '../components/SearchBar';
-import { fetchByCountry, fetchInternational, getUserCountryCode } from '../api/newsApi';
+import { useNewsFeeds } from '../hooks/useNewsFeeds';
+import { useSavedArticles } from '../context/SavedArticlesContext';
 import { colors, fonts } from '../theme';
 
 export default function FeedScreen({ navigation }) {
-  const [feeds, setFeeds] = useState({ local: [], us: [], international: [] });
-  const [availableRegions, setAvailableRegions] = useState([]);
-  const [selectedRegion, setSelectedRegion] = useState(null);
+  const {
+    feeds,
+    availableRegions,
+    selectedRegion,
+    setSelectedRegion,
+    isLoading,
+    isRefreshing,
+    errorMessage,
+    handleRefresh,
+  } = useNewsFeeds();
+
+  const { isSaved, toggleSave } = useSavedArticles();
   const [searchText, setSearchText] = useState('');
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null);
-
-  const loadAllFeeds = useCallback(async () => {
-    setErrorMessage(null);
-
-    const userCountryCode = getUserCountryCode();
-    const showLocalTab = userCountryCode && userCountryCode !== 'us';
-
-    const results = await Promise.allSettled([
-      showLocalTab ? fetchByCountry(userCountryCode) : Promise.resolve([]),
-      fetchByCountry('us'),
-      fetchInternational(),
-    ]);
-
-    const [localResult, usResult, internationalResult] = results;
-
-    const nextFeeds = {
-      local: localResult.status === 'fulfilled' ? localResult.value : [],
-      us: usResult.status === 'fulfilled' ? usResult.value : [],
-      international: internationalResult.status === 'fulfilled' ? internationalResult.value : [],
-    };
-
-    const nextRegions = [];
-    if (showLocalTab && nextFeeds.local.length > 0) {
-      nextRegions.push({ key: 'local', label: 'Your country' });
-    }
-    if (nextFeeds.us.length > 0) {
-      nextRegions.push({ key: 'us', label: 'US' });
-    }
-    if (nextFeeds.international.length > 0) {
-      nextRegions.push({ key: 'international', label: 'International' });
-    }
-
-    if (nextRegions.length === 0) {
-      setErrorMessage("Couldn't load news from any region right now.");
-    }
-
-    setFeeds(nextFeeds);
-    setAvailableRegions(nextRegions);
-    setSelectedRegion((current) =>
-      nextRegions.some((region) => region.key === current) ? current : nextRegions[0]?.key
-    );
-  }, []);
-
-  useEffect(() => {
-    loadAllFeeds().finally(() => setIsLoading(false));
-  }, [loadAllFeeds]);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await loadAllFeeds();
-    setIsRefreshing(false);
-  };
-
-  // filters the active region's stories by whatever is typed in the search bar
   const activeStories = useMemo(() => {
     const stories = feeds[selectedRegion] || [];
     if (!searchText.trim()) return stories;
@@ -111,10 +64,24 @@ export default function FeedScreen({ navigation }) {
     );
   }
 
-  const breakingStories = activeStories.filter((story) => story.isBreaking);
-  const trendingStories = activeStories
-    .filter((story) => !story.isBreaking)
+  // only the 5 most recent breaking-eligible stories actually show as
+  // "breaking" - anything past that, even if it's within the time window,
+  // falls back into trending instead of taking over the whole carousel
+  const MAX_BREAKING_STORIES = 5;
+
+  const breakingCandidates = activeStories
+    .filter((story) => story.isBreaking)
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+
+  const breakingStories = breakingCandidates.slice(0, MAX_BREAKING_STORIES);
+  const overflowBreaking = breakingCandidates.slice(MAX_BREAKING_STORIES);
+
+  const trendingStories = [...activeStories.filter((story) => !story.isBreaking), ...overflowBreaking]
+    .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+    
+  const openArticle = (story) => navigation.navigate('Article', { story });
+  const openHelp = (story) =>
+    navigation.navigate('StoryHelp', { title: story.title, summary: story.summary });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -138,13 +105,13 @@ export default function FeedScreen({ navigation }) {
         {breakingStories.length > 0 && (
           <>
             <Text style={styles.sectionHeader}>Breaking</Text>
-            {breakingStories.map((story) => (
-              <StoryCard
-                key={story.id}
-                story={story}
-                onPress={() => navigation.navigate('Article', { url: story.sourceUrl, sourceName: story.category })}
-              />
-            ))}
+            <BreakingCarousel
+              stories={breakingStories}
+              onPress={openArticle}
+              onHelpPress={openHelp}
+              isSaved={isSaved}
+              onToggleSave={toggleSave}
+            />
           </>
         )}
 
@@ -154,7 +121,10 @@ export default function FeedScreen({ navigation }) {
             <StoryCard
               key={story.id}
               story={story}
-              onPress={() => navigation.navigate('Article', { url: story.sourceUrl, sourceName: story.category })}
+              onPress={() => openArticle(story)}
+              onHelpPress={() => openHelp(story)}
+              isSaved={isSaved(story)}
+              onToggleSave={() => toggleSave(story)}
             />
           ))
         ) : (

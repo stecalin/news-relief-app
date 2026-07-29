@@ -11,6 +11,8 @@ import {
   PlusJakartaSans_700Bold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import AppNavigator from './src/navigation/AppNavigator';
+import { AuthProvider } from './src/context/AuthContext';
+import { SavedArticlesProvider } from './src/context/SavedArticlesContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -31,5 +33,11 @@ export default function App() {
     return null;
   }
 
-  return <AppNavigator />;
+  return (
+    <AuthProvider>
+      <SavedArticlesProvider>
+        <AppNavigator />
+      </SavedArticlesProvider>
+    </AuthProvider>
+  );
 }

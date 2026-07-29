@@ -1,76 +1,113 @@
-// handles all communication with newsapi.org
-// this file fetches three separate feeds - the user's own country, the us,
-// and a fixed set of trusted international wire services - and hands back
-// stories already shaped for the rest of the app to use
+// handles all communication with gnews.io
+// adds two things on top of a plain fetch: a 15-minute cache (so we don't
+// burn through the free tier's rate limit every time a screen re-renders),
+// and category filtering (so we get world/national news instead of
+// entertainment and sports clutter)
 
 import * as Localization from 'expo-localization';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { dedupeStories } from '../utils/dedupeStories';
 
-const API_KEY = process.env.EXPO_PUBLIC_NEWS_API_KEY;
-const BASE_URL = 'https://newsapi.org/v2';
+const API_KEY = process.env.EXPO_PUBLIC_GNEWS_API_KEY;
+const BASE_URL = 'https://gnews.io/api/v4';
 
-// hand-picked list of established, reliable wire services and outlets
-// (full list of valid source ids: https://newsapi.org/sources)
-const INTERNATIONAL_SOURCES = [
-  'associated-press',
-  'reuters',
-  'bbc-news',
-  'al-jazeera-english',
-  'the-washington-post',
-  'npr',
-].join(',');
+const TRUSTED_DOMAINS = [
+  'reuters.com',
+  'apnews.com',
+  'bbc.co.uk',
+  'bbc.com',
+  'aljazeera.com',
+  'washingtonpost.com',
+  'npr.org',
+];
 
-// how recent a story needs to be (in hours) to count as "breaking"
-const BREAKING_WINDOW_HOURS = 6;
+const BREAKING_WINDOW_HOURS = 12;
+const CACHE_TTL_MINUTES = 15;
 
-// figures out the user's country code from their device settings
-// returns something like "us", "gb", "ca" - or null if it can't be determined
 export function getUserCountryCode() {
   const locales = Localization.getLocales();
   const regionCode = locales?.[0]?.regionCode;
   return regionCode ? regionCode.toLowerCase() : null;
 }
 
-// fetches top headlines for a specific country
-// (newsapi only supports a limited list of countries - if this fails,
-// the screen just won't show a "your country" tab)
+// world and nation are the categories closest to general/relief-relevant
+// news - this leaves out entertainment, sports, tech, and business noise
 export async function fetchByCountry(countryCode) {
-  const url = `${BASE_URL}/top-headlines?country=${countryCode}&pageSize=20&apiKey=${API_KEY}`;
-  return fetchAndShape(url);
+  const url = `${BASE_URL}/top-headlines?country=${countryCode}&category=nation&lang=en&max=25&apikey=${API_KEY}`;
+  const articles = await fetchWithCache(`country-${countryCode}`, url);
+  return dedupeStories(articles);
 }
 
-// fetches from our fixed list of trusted international wire services
 export async function fetchInternational() {
-  const url = `${BASE_URL}/top-headlines?sources=${INTERNATIONAL_SOURCES}&pageSize=20&apiKey=${API_KEY}`;
-  return fetchAndShape(url);
+  const url = `${BASE_URL}/top-headlines?category=world&lang=en&max=25&apikey=${API_KEY}`;
+  const articles = await fetchWithCache('international', url);
+
+  const trustedOnly = articles.filter((article) =>
+    TRUSTED_DOMAINS.some((domain) => article.sourceUrl.includes(domain))
+  );
+
+  return dedupeStories(trustedOnly);
 }
 
-// shared logic for hitting the api and converting the response
-// into the story shape our components expect
+// checks the cache first - only calls the real api if the cached data
+// for this key is missing or older than CACHE_TTL_MINUTES
+async function fetchWithCache(cacheKey, url) {
+  const storageKey = `news-cache-${cacheKey}`;
+
+  try {
+    const cachedRaw = await AsyncStorage.getItem(storageKey);
+    if (cachedRaw) {
+      const cached = JSON.parse(cachedRaw);
+      const ageMinutes = (Date.now() - cached.fetchedAt) / (1000 * 60);
+
+      if (ageMinutes < CACHE_TTL_MINUTES) {
+        return cached.articles;
+      }
+    }
+  } catch {
+    // if reading the cache fails for any reason, just fall through to a fresh fetch
+  }
+
+  const articles = await fetchAndShape(url);
+
+  try {
+    await AsyncStorage.setItem(
+      storageKey,
+      JSON.stringify({ articles, fetchedAt: Date.now() })
+    );
+  } catch {
+    // if writing the cache fails, it's not worth crashing over - just move on
+  }
+
+  return articles;
+}
+
 async function fetchAndShape(url) {
   if (!API_KEY) {
-    throw new Error('missing news api key - check your .env file');
+    throw new Error('missing gnews api key - check your .env file');
   }
 
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`news api request failed with status ${response.status}`);
+    const errorBody = await response.text();
+    console.error('gnews error response:', response.status, errorBody);
+    throw new Error(`gnews request failed with status ${response.status}`);
   }
 
   const data = await response.json();
 
   return data.articles
-    .filter((article) => article.title && article.title !== '[Removed]')
+    .filter((article) => article.title)
     .map(shapeArticle);
 }
 
-// converts one raw newsapi article into our app's story format
 function shapeArticle(article) {
   return {
     id: article.url,
     title: article.title,
     summary: article.description || 'No summary available for this story.',
-    imageUrl: article.urlToImage || null,
+    imageUrl: article.image || null,
     category: article.source.name,
     publishedAt: article.publishedAt,
     isBreaking: isWithinBreakingWindow(article.publishedAt),
@@ -78,7 +115,6 @@ function shapeArticle(article) {
   };
 }
 
-// checks whether a timestamp falls inside our "breaking" window
 function isWithinBreakingWindow(publishedAt) {
   const hoursSincePublished = (Date.now() - new Date(publishedAt)) / (1000 * 60 * 60);
   return hoursSincePublished <= BREAKING_WINDOW_HOURS;
